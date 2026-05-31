@@ -80,9 +80,6 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: #0e1220; font-weight: 600; }
   [data-theme="light"] button.primary { color: #fff; }
   button.icon { min-width: 44px; font-size: 16px; }
-  #mode { min-width: 118px; font-weight: 600; }
-  #mode.fill-mode { border-color: var(--accent); color: var(--accent); }
-  #mode.mark-mode { border-color: var(--mark-accent); color: var(--mark-accent); }
 
   .stats { display: flex; gap: 24px; margin-bottom: 14px; color: var(--muted); font-size: 15px; }
   .stats b { color: var(--text); }
@@ -170,7 +167,6 @@
         <option value="15">15 × 15</option>
       </select>
     </label>
-    <button id="mode" class="fill-mode">Mode: Fill</button>
     <button id="new" class="primary">New</button>
     <button id="undo" disabled>&#8634; Undo</button>
     <button id="check">Check</button>
@@ -190,7 +186,7 @@
   <div id="boardWrap"><div id="board" class="board"></div></div>
 
   <div id="message" class="message"></div>
-  <p class="hint" id="hint">Tap = fill &nbsp;•&nbsp; Switch to <b>Mark</b> mode to place X's &nbsp;•&nbsp; Drag to paint</p>
+  <p class="hint" id="hint"><b>Phone:</b> tap to cycle fill → X → empty &nbsp;•&nbsp; <b>Mouse:</b> left-click = fill, right-click = X (click again to clear) &nbsp;•&nbsp; Drag to paint</p>
 
   <!-- Help modal -->
   <div class="overlay" id="overlay">
@@ -210,9 +206,9 @@
 
       <h3>Controls</h3>
       <ul>
-        <li><b>Tap / left-click</b> a cell to <b>fill</b> it (<span class="swatch" style="background:var(--fill)"></span>). Tap again to clear it.</li>
-        <li>Tap the <b>Mode</b> button to switch to <b>Mark&nbsp;✕</b>, then tap cells you've ruled out to flag them with an X. (On a computer, right-click also marks.)</li>
-        <li><b>Drag</b> across cells to paint several at once.</li>
+        <li><b>On a phone / tablet:</b> tap a cell to cycle through its states — empty → <b>filled</b> (<span class="swatch" style="background:var(--fill)"></span>) → <b>X</b> (ruled out) → empty again.</li>
+        <li><b>With a mouse:</b> <b>left-click</b> fills a cell (click again to clear it); <b>right-click</b> places an <b>X</b> (click again to clear it).</li>
+        <li><b>Drag</b> across cells to paint several at once (they all take the first cell's new state).</li>
         <li><b>Undo</b> reverses your last action.</li>
       </ul>
 
@@ -241,7 +237,6 @@
   var boardWrap = document.getElementById("boardWrap");
   var messageEl = document.getElementById("message");
   var sizeEl = document.getElementById("size");
-  var modeEl = document.getElementById("mode");
   var undoEl = document.getElementById("undo");
   var hintEl = document.getElementById("hint");
   var timeEl = document.getElementById("time");
@@ -254,7 +249,6 @@
   var rowClues = [];
   var colClues = [];
   var won = false;
-  var mode = "fill";
 
   var startTime = null;
   var timerId = null;
@@ -586,20 +580,23 @@
     var el = document.elementFromPoint(x, y);
     return (el && el.closest) ? el.closest(".cell") : null;
   }
-  function actionValueFor(r, c, useMark) {
-    if (useMark) return state[r][c] === 2 ? 0 : 2;
-    return state[r][c] === 1 ? 0 : 1;
-  }
+  function nextValue(v) { return (v + 1) % 3; }   // empty(0) -> filled(1) -> X(2) -> empty(0)
   function attachPointerEvents(wrap) {
     wrap.addEventListener("pointerdown", function (e) {
       var cell = e.target.closest && e.target.closest(".cell");
       if (!cell) return;
       e.preventDefault();
       var r = +cell.dataset.r, c = +cell.dataset.c;
-      var useMark = (e.button === 2) || (mode === "mark");
       isDragging = true;
       currentStroke = [];
-      dragValue = actionValueFor(r, c, useMark);
+      if (e.pointerType === "mouse") {
+        // mouse: left-click toggles fill, right-click toggles X
+        if (e.button === 2) dragValue = state[r][c] === 2 ? 0 : 2;
+        else dragValue = state[r][c] === 1 ? 0 : 1;
+      } else {
+        // touch / pen: a tap cycles empty -> fill -> X -> empty
+        dragValue = nextValue(state[r][c]);
+      }
       lastCell = cell;
       applyToCell(r, c, dragValue);
     });
@@ -616,21 +613,6 @@
   function endDrag() { if (isDragging) commitStroke(); isDragging = false; lastCell = null; }
   document.addEventListener("pointerup", endDrag);
   document.addEventListener("pointercancel", endDrag);
-
-  /* ---------- mode toggle ---------- */
-  function setMode(m) {
-    mode = m;
-    if (m === "fill") {
-      modeEl.textContent = "Mode: Fill";
-      modeEl.className = "fill-mode";
-      hintEl.innerHTML = "Tap = fill &nbsp;•&nbsp; Switch to <b>Mark</b> mode to place X's &nbsp;•&nbsp; Drag to paint";
-    } else {
-      modeEl.textContent = "Mode: Mark ✕";
-      modeEl.className = "mark-mode";
-      hintEl.innerHTML = "Tap = place / remove an <b>X</b> &nbsp;•&nbsp; Switch to <b>Fill</b> mode to fill cells &nbsp;•&nbsp; Drag to paint";
-    }
-  }
-  modeEl.addEventListener("click", function () { setMode(mode === "fill" ? "mark" : "fill"); });
 
   /* ---------- theme ---------- */
   function setTheme(t) {
@@ -761,7 +743,6 @@
     currentStroke = null;
     messageEl.textContent = p.logic ? "" : "Heads up: this one may need a guess.";
     messageEl.className = "message";
-    setMode("fill");
     updateUndoBtn();
     buildBoard();
     startTimer();

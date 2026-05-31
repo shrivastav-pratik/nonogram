@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Nonogram</title>
 <style>
+  /* ----- dark theme (default) ----- */
   :root {
     --bg: #1e2230;
     --panel: #2a2f42;
@@ -18,6 +19,21 @@
     --muted: #9aa3c0;
     --grid-line: #4a5276;
     --grid-line-major: #8a93b8;
+    --shadow: rgba(0,0,0,.35);
+  }
+  /* ----- light theme ----- */
+  [data-theme="light"] {
+    --bg: #eef1f8;
+    --panel: #ffffff;
+    --cell-empty: #f5f7fd;
+    --fill: #2b3147;
+    --accent: #4b6cff;
+    --mark-accent: #e0871f;
+    --text: #1c2030;
+    --muted: #5b6480;
+    --grid-line: #c5cbe0;
+    --grid-line-major: #7b85a8;
+    --shadow: rgba(60,70,110,.18);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { overflow-x: hidden; }
@@ -31,6 +47,7 @@
     align-items: center;
     min-height: 100vh;
     padding: 18px 10px 40px;
+    transition: background .2s, color .2s;
   }
   h1 { margin: 0 0 2px; font-weight: 600; letter-spacing: 2px; font-size: 26px; }
   .subtitle { color: var(--muted); margin: 0 0 16px; font-size: 13px; text-align: center; max-width: 480px; }
@@ -42,7 +59,7 @@
     align-items: center;
     margin-bottom: 14px;
     width: 100%;
-    max-width: 520px;
+    max-width: 560px;
   }
   button, select {
     background: var(--panel);
@@ -52,63 +69,44 @@
     padding: 9px 14px;
     font-size: 14px;
     cursor: pointer;
-    transition: background .15s, border-color .15s;
+    transition: background .15s, border-color .15s, opacity .15s;
     -webkit-appearance: none;
     appearance: none;
     touch-action: manipulation;
   }
   button:hover, select:hover { border-color: var(--accent); }
   button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #0e1220; font-weight: 600; }
+  [data-theme="light"] button.primary { color: #fff; }
+  button.icon { min-width: 44px; font-size: 16px; }
   #mode { min-width: 118px; font-weight: 600; }
   #mode.fill-mode { border-color: var(--accent); color: var(--accent); }
   #mode.mark-mode { border-color: var(--mark-accent); color: var(--mark-accent); }
 
-  .stats {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 14px;
-    color: var(--muted);
-    font-size: 15px;
-  }
+  .stats { display: flex; gap: 24px; margin-bottom: 14px; color: var(--muted); font-size: 15px; }
   .stats b { color: var(--text); }
 
   #boardWrap { width: 100%; position: relative; }
-
   .board {
     display: grid;
     background: var(--panel);
     padding: 12px;
     border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+    box-shadow: 0 8px 30px var(--shadow);
     user-select: none;
     -webkit-user-select: none;
     transform-origin: top left;
   }
   .corner { background: transparent; }
-  .clue-top, .clue-left {
-    display: flex;
-    color: var(--muted);
-    font-weight: 600;
-    line-height: 1.15;
-  }
+  .clue-top, .clue-left { display: flex; color: var(--muted); font-weight: 600; line-height: 1.15; }
   .clue-top { flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 3px; }
   .clue-left { flex-direction: row; justify-content: flex-end; align-items: center; padding-right: 5px; gap: 4px; }
   .clue-top span, .clue-left span { display: block; }
-  .clue-top.solved, .clue-left.solved { color: #56d68a; }
+  .clue-top.solved, .clue-left.solved { color: #36c46f; }
 
-  .cells {
-    display: grid;
-    gap: 0;
-    border: 2px solid var(--grid-line-major);
-    touch-action: none;   /* let us paint with a finger without scrolling */
-  }
-  .cell {
-    background: var(--cell-empty);
-    border: 1px solid var(--grid-line);
-    cursor: pointer;
-    position: relative;
-  }
+  .cells { display: grid; gap: 0; border: 2px solid var(--grid-line-major); touch-action: none; }
+  .cell { background: var(--cell-empty); border: 1px solid var(--grid-line); cursor: pointer; position: relative; }
   .cell.filled { background: var(--fill); }
   .cell.marked::after {
     content: "";
@@ -122,8 +120,31 @@
   .cell.major-bottom { border-bottom: 2px solid var(--grid-line-major); }
 
   .message { margin-top: 16px; font-size: 17px; min-height: 22px; font-weight: 600; text-align: center; }
-  .message.win { color: #56d68a; }
+  .message.win { color: #36c46f; }
   .hint { color: var(--muted); font-size: 12px; margin-top: 8px; text-align: center; max-width: 480px; }
+
+  /* ----- help modal ----- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center; padding: 16px; z-index: 100;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--panel); color: var(--text);
+    max-width: 460px; width: 100%; max-height: 86vh; overflow: auto;
+    border-radius: 14px; padding: 22px 22px 26px; box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    position: relative;
+  }
+  .modal h2 { margin: 0 0 12px; font-size: 20px; }
+  .modal h3 { margin: 18px 0 6px; font-size: 15px; color: var(--accent); }
+  .modal p, .modal li { font-size: 14px; line-height: 1.5; color: var(--text); }
+  .modal ul { margin: 6px 0; padding-left: 20px; }
+  .modal .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; border: 1px solid var(--grid-line); }
+  .modal .close { position: absolute; top: 12px; right: 12px; min-width: 34px; padding: 5px 10px; font-size: 16px; }
+  .modal .example { display: inline-grid; grid-template-columns: auto repeat(5, 22px); gap: 0; margin: 8px 0; align-items: center; }
+  .modal .example .lbl { font-size: 12px; color: var(--muted); font-weight: 700; padding-right: 8px; }
+  .modal .example .mc { width: 22px; height: 22px; border: 1px solid var(--grid-line); }
+  .modal .example .mc.on { background: var(--fill); }
 </style>
 </head>
 <body>
@@ -133,15 +154,18 @@
   <div class="controls">
     <label style="display:flex;align-items:center;gap:6px;">Size:
       <select id="size">
-        <option value="5">5 × 5</option>
-        <option value="10" selected>10 × 10</option>
+        <option value="5" selected>5 × 5</option>
+        <option value="10">10 × 10</option>
         <option value="15">15 × 15</option>
       </select>
     </label>
     <button id="mode" class="fill-mode">Mode: Fill</button>
     <button id="new" class="primary">New</button>
+    <button id="undo" disabled>&#8634; Undo</button>
     <button id="check">Check</button>
     <button id="clear">Clear</button>
+    <button id="theme" class="icon" title="Toggle light / dark theme">🌙</button>
+    <button id="help" class="icon" title="How to play">?</button>
   </div>
 
   <div class="stats">
@@ -154,6 +178,47 @@
   <div id="message" class="message"></div>
   <p class="hint" id="hint">Tap = fill &nbsp;•&nbsp; Switch to <b>Mark</b> mode to place X's &nbsp;•&nbsp; Drag to paint</p>
 
+  <!-- Help modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <button class="close" id="closeHelp" aria-label="Close">✕</button>
+      <h2 id="helpTitle">How to play Nonogram</h2>
+      <p>A nonogram is a picture logic puzzle. The numbers tell you how many cells to fill — your job is to work out <em>which</em> ones, using logic alone. Every puzzle here has exactly one solution and never needs guessing.</p>
+
+      <h3>Reading the clues</h3>
+      <p>Each number on a row or column is the length of a run of filled cells, listed in order. Runs are separated by at least one empty cell.</p>
+      <p>Example — a row clue <b>3&nbsp;1</b> means a block of 3 filled cells, then a gap, then 1 filled cell:</p>
+      <div class="example">
+        <div class="lbl">3 1</div>
+        <div class="mc on"></div><div class="mc on"></div><div class="mc on"></div><div class="mc"></div><div class="mc on"></div>
+      </div>
+      <p>A clue of <b>0</b> means that row or column is completely empty.</p>
+
+      <h3>Controls</h3>
+      <ul>
+        <li><b>Tap / left-click</b> a cell to <b>fill</b> it (<span class="swatch" style="background:var(--fill)"></span>). Tap again to clear it.</li>
+        <li>Tap the <b>Mode</b> button to switch to <b>Mark&nbsp;✕</b>, then tap cells you've ruled out to flag them with an X. (On a computer, right-click also marks.)</li>
+        <li><b>Drag</b> across cells to paint several at once.</li>
+        <li><b>Undo</b> reverses your last action.</li>
+      </ul>
+
+      <h3>Buttons</h3>
+      <ul>
+        <li><b>New</b> — generate a fresh puzzle at the chosen size.</li>
+        <li><b>Check</b> — tells you how many filled cells are wrong (without revealing the answer).</li>
+        <li><b>Clear</b> — empties the whole grid.</li>
+        <li><b>🌙 / ☀️</b> — switch between dark and light themes.</li>
+      </ul>
+
+      <h3>Winning</h3>
+      <p>A row or column clue turns <span style="color:#36c46f;font-weight:700">green</span> when it's satisfied. Fill every cell correctly and the puzzle solves itself — your X marks don't matter, only the filled cells.</p>
+
+      <p style="text-align:center;margin-top:18px;">
+        <button class="primary" id="startPlaying">Got it — let's play!</button>
+      </p>
+    </div>
+  </div>
+
 <script>
 (function () {
   "use strict";
@@ -163,26 +228,29 @@
   var messageEl = document.getElementById("message");
   var sizeEl = document.getElementById("size");
   var modeEl = document.getElementById("mode");
+  var undoEl = document.getElementById("undo");
   var hintEl = document.getElementById("hint");
   var timeEl = document.getElementById("time");
   var progressEl = document.getElementById("progress");
+  var themeEl = document.getElementById("theme");
 
-  var N = 10;
+  var N = 5;
   var solution = [];
   var state = [];        // 0 empty, 1 filled, 2 marked-X
   var rowClues = [];
   var colClues = [];
   var won = false;
-
-  var mode = "fill";     // "fill" or "mark"
+  var mode = "fill";
 
   var startTime = null;
   var timerId = null;
 
-  // drag painting
+  // drag painting + undo
   var isDragging = false;
   var dragValue = 0;
-  var lastCell = null;   // avoid re-applying to the same cell repeatedly
+  var lastCell = null;
+  var currentStroke = null;   // array of {r,c,prev} for the in-progress gesture
+  var undoStack = [];
 
   /* ---------- timer ---------- */
   function startTimer() {
@@ -198,22 +266,7 @@
     timeEl.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
 
-  /* ---------- puzzle generation ---------- */
-  function generateSolution(n) {
-    var density = 0.55, grid = [], anyFilled = false;
-    for (var r = 0; r < n; r++) {
-      var row = [];
-      for (var c = 0; c < n; c++) {
-        var v = Math.random() < density ? 1 : 0;
-        row.push(v);
-        if (v) anyFilled = true;
-      }
-      grid.push(row);
-    }
-    if (!anyFilled) grid[0][0] = 1;
-    return grid;
-  }
-
+  /* ---------- clue helpers ---------- */
   function lineClues(line) {
     var clues = [], run = 0;
     for (var i = 0; i < line.length; i++) {
@@ -225,16 +278,124 @@
     return clues;
   }
 
-  function computeClues() {
-    rowClues = []; colClues = [];
-    for (var r = 0; r < N; r++) rowClues.push(lineClues(solution[r]));
-    for (var c = 0; c < N; c++) {
+  function cluesFor(grid, n) {
+    var rc = [], cc = [];
+    for (var r = 0; r < n; r++) rc.push(lineClues(grid[r]));
+    for (var c = 0; c < n; c++) {
       var col = [];
-      for (var r2 = 0; r2 < N; r2++) col.push(solution[r2][c]);
-      colClues.push(lineClues(col));
+      for (var r2 = 0; r2 < n; r2++) col.push(grid[r2][c]);
+      cc.push(lineClues(col));
     }
+    return { rows: rc, cols: cc };
   }
 
+  /* ---------- logic solver (so puzzles need no guessing) ----------
+     For one line, intersect every clue-consistent arrangement that also
+     matches what's already known. Returns an array of 0/1/-1 (-1 = still
+     unknown), or null if the clues contradict the known cells. */
+  function lineSolve(clues, length, known) {
+    var canFilled = new Array(length).fill(false);
+    var canEmpty = new Array(length).fill(false);
+    var found = false;
+    var blocks = (clues.length === 1 && clues[0] === 0) ? [] : clues;
+    var pattern = new Array(length).fill(0);
+
+    function rec(bi, pos) {
+      if (bi === blocks.length) {
+        for (var i = pos; i < length; i++) pattern[i] = 0;
+        for (var j = 0; j < length; j++) if (known[j] !== -1 && known[j] !== pattern[j]) return;
+        found = true;
+        for (var k = 0; k < length; k++) {
+          if (pattern[k] === 1) canFilled[k] = true; else canEmpty[k] = true;
+        }
+        return;
+      }
+      var block = blocks[bi];
+      var rem = 0;
+      for (var t = bi; t < blocks.length; t++) { rem += blocks[t]; if (t > bi) rem++; }
+      var lastStart = length - rem;
+      for (var start = pos; start <= lastStart; start++) {
+        var ok = true, i;
+        for (i = pos; i < start; i++) { pattern[i] = 0; if (known[i] === 1) ok = false; }
+        if (ok) for (i = start; i < start + block; i++) { pattern[i] = 1; if (known[i] === 0) ok = false; }
+        if (ok) {
+          var nextPos = start + block;
+          if (nextPos < length) { pattern[nextPos] = 0; if (known[nextPos] === 1) ok = false; }
+          if (ok) rec(bi + 1, nextPos + 1);
+        }
+      }
+    }
+    rec(0, 0);
+    if (!found) return null;
+    var res = new Array(length);
+    for (var i = 0; i < length; i++) {
+      if (canFilled[i] && !canEmpty[i]) res[i] = 1;
+      else if (canEmpty[i] && !canFilled[i]) res[i] = 0;
+      else res[i] = -1;
+    }
+    return res;
+  }
+
+  // Try to solve a whole puzzle by pure line logic. Returns true if fully solved.
+  function isLogicSolvable(rc, cc, n) {
+    var grid = [];
+    for (var r = 0; r < n; r++) grid.push(new Array(n).fill(-1));
+
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var r2 = 0; r2 < n; r2++) {
+        var res = lineSolve(rc[r2], n, grid[r2]);
+        if (!res) return false;
+        for (var c = 0; c < n; c++) if (grid[r2][c] === -1 && res[c] !== -1) { grid[r2][c] = res[c]; changed = true; }
+      }
+      for (var c2 = 0; c2 < n; c2++) {
+        var col = [];
+        for (var r3 = 0; r3 < n; r3++) col.push(grid[r3][c2]);
+        var cres = lineSolve(cc[c2], n, col);
+        if (!cres) return false;
+        for (var r4 = 0; r4 < n; r4++) if (grid[r4][c2] === -1 && cres[r4] !== -1) { grid[r4][c2] = cres[r4]; changed = true; }
+      }
+    }
+    for (var rr = 0; rr < n; rr++) for (var ccx = 0; ccx < n; ccx++) if (grid[rr][ccx] === -1) return false;
+    return true; // fully determined => unique & solvable by logic
+  }
+
+  function randomGrid(n) {
+    var density = 0.5, grid = [], anyFilled = false;
+    for (var r = 0; r < n; r++) {
+      var row = [];
+      for (var c = 0; c < n; c++) {
+        var v = Math.random() < density ? 1 : 0;
+        row.push(v);
+        if (v) anyFilled = true;
+      }
+      grid.push(row);
+    }
+    if (!anyFilled) grid[Math.floor(Math.random() * n)][Math.floor(Math.random() * n)] = 1;
+    return grid;
+  }
+
+  // Generate a puzzle that's solvable by logic; fall back gracefully if time runs out.
+  function makePuzzle(n) {
+    var maxAttempts = n <= 5 ? 600 : (n <= 10 ? 400 : 150);
+    var timeBudget = 1300; // ms
+    var start = Date.now();
+    var lastGrid = null, lastClues = null;
+    for (var a = 0; a < maxAttempts; a++) {
+      var grid = randomGrid(n);
+      var clues = cluesFor(grid, n);
+      lastGrid = grid; lastClues = clues;
+      if (isLogicSolvable(clues.rows, clues.cols, n)) {
+        return { solution: grid, rowClues: clues.rows, colClues: clues.cols, logic: true };
+      }
+      if (Date.now() - start > timeBudget) break;
+    }
+    // fallback: still playable (any valid arrangement wins), just may need a guess
+    return { solution: lastGrid, rowClues: lastClues.rows, colClues: lastClues.cols, logic: false };
+  }
+
+  /* ---------- win detection ---------- */
   function stateLineFromCells(getter) {
     var line = [];
     for (var i = 0; i < N; i++) line.push(getter(i) === 1 ? 1 : 0);
@@ -257,9 +418,9 @@
     return true;
   }
 
-  /* ---------- sizing (touch-friendly + auto-fit) ---------- */
+  /* ---------- board build + auto-fit ---------- */
   function baseCellSize() {
-    if (N <= 5) return 52;
+    if (N <= 5) return 54;
     if (N <= 10) return 40;
     return 30;
   }
@@ -291,12 +452,8 @@
     topWrap.style.gridTemplateColumns = "repeat(" + N + ", " + cs + "px)";
     for (var c2 = 0; c2 < N; c2++) {
       var tc = document.createElement("div");
-      tc.className = "clue-top";
-      tc.dataset.col = c2;
-      tc.style.fontSize = clueFont + "px";
-      colClues[c2].forEach(function (num) {
-        var s = document.createElement("span"); s.textContent = num; tc.appendChild(s);
-      });
+      tc.className = "clue-top"; tc.dataset.col = c2; tc.style.fontSize = clueFont + "px";
+      colClues[c2].forEach(function (num) { var s = document.createElement("span"); s.textContent = num; tc.appendChild(s); });
       topWrap.appendChild(tc);
     }
     boardEl.appendChild(topWrap);
@@ -306,12 +463,8 @@
     leftWrap.style.gridTemplateRows = "repeat(" + N + ", " + cs + "px)";
     for (var r2 = 0; r2 < N; r2++) {
       var lc = document.createElement("div");
-      lc.className = "clue-left";
-      lc.dataset.row = r2;
-      lc.style.fontSize = clueFont + "px";
-      rowClues[r2].forEach(function (num) {
-        var s = document.createElement("span"); s.textContent = num; lc.appendChild(s);
-      });
+      lc.className = "clue-left"; lc.dataset.row = r2; lc.style.fontSize = clueFont + "px";
+      rowClues[r2].forEach(function (num) { var s = document.createElement("span"); s.textContent = num; lc.appendChild(s); });
       leftWrap.appendChild(lc);
     }
     boardEl.appendChild(leftWrap);
@@ -323,9 +476,7 @@
     for (var r3 = 0; r3 < N; r3++) {
       for (var c3 = 0; c3 < N; c3++) {
         var cell = document.createElement("div");
-        cell.className = "cell";
-        cell.dataset.r = r3;
-        cell.dataset.c = c3;
+        cell.className = "cell"; cell.dataset.r = r3; cell.dataset.c = c3;
         if ((c3 + 1) % 5 === 0 && c3 !== N - 1) cell.classList.add("major-right");
         if ((r3 + 1) % 5 === 0 && r3 !== N - 1) cell.classList.add("major-bottom");
         cellsWrap.appendChild(cell);
@@ -338,7 +489,6 @@
     fitBoard();
   }
 
-  // Scale the whole board down (never up) so it fits the screen width.
   function fitBoard() {
     boardEl.style.transform = "none";
     boardEl.style.position = "static";
@@ -356,9 +506,7 @@
     }
   }
 
-  function getCellEl(r, c) {
-    return boardEl.querySelector('.cell[data-r="' + r + '"][data-c="' + c + '"]');
-  }
+  function getCellEl(r, c) { return boardEl.querySelector('.cell[data-r="' + r + '"][data-c="' + c + '"]'); }
   function renderCell(r, c) {
     var el = getCellEl(r, c);
     if (!el) return;
@@ -389,9 +537,11 @@
     }
   }
 
+  /* ---------- applying moves (with undo recording) ---------- */
   function applyToCell(r, c, value) {
     if (won) return;
     if (state[r][c] === value) return;
+    if (currentStroke) currentStroke.push({ r: r, c: c, prev: state[r][c] });
     state[r][c] = value;
     renderCell(r, c);
     updateProgress();
@@ -399,33 +549,46 @@
     if (checkWin()) onWin();
   }
 
-  /* ---------- input: pointer events unify mouse + touch ---------- */
+  function updateUndoBtn() { undoEl.disabled = won || undoStack.length === 0; }
+
+  function commitStroke() {
+    if (currentStroke && currentStroke.length > 0) {
+      undoStack.push(currentStroke);
+      updateUndoBtn();
+    }
+    currentStroke = null;
+  }
+
+  function undo() {
+    if (won || undoStack.length === 0) return;
+    var stroke = undoStack.pop();
+    for (var i = stroke.length - 1; i >= 0; i--) state[stroke[i].r][stroke[i].c] = stroke[i].prev;
+    renderState();
+    updateUndoBtn();
+  }
+
+  /* ---------- input ---------- */
   function cellFromPoint(x, y) {
     var el = document.elementFromPoint(x, y);
-    if (!el) return null;
-    el = el.closest ? el.closest(".cell") : null;
-    return el;
+    return (el && el.closest) ? el.closest(".cell") : null;
   }
-
   function actionValueFor(r, c, useMark) {
-    if (useMark) return state[r][c] === 2 ? 0 : 2;   // toggle X
-    return state[r][c] === 1 ? 0 : 1;                // toggle fill
+    if (useMark) return state[r][c] === 2 ? 0 : 2;
+    return state[r][c] === 1 ? 0 : 1;
   }
-
   function attachPointerEvents(wrap) {
     wrap.addEventListener("pointerdown", function (e) {
       var cell = e.target.closest && e.target.closest(".cell");
       if (!cell) return;
       e.preventDefault();
       var r = +cell.dataset.r, c = +cell.dataset.c;
-      // right mouse button always marks; otherwise use the current mode
       var useMark = (e.button === 2) || (mode === "mark");
       isDragging = true;
+      currentStroke = [];
       dragValue = actionValueFor(r, c, useMark);
       lastCell = cell;
       applyToCell(r, c, dragValue);
     });
-
     wrap.addEventListener("pointermove", function (e) {
       if (!isDragging) return;
       e.preventDefault();
@@ -434,11 +597,9 @@
       lastCell = cell;
       applyToCell(+cell.dataset.r, +cell.dataset.c, dragValue);
     });
-
     wrap.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   }
-
-  function endDrag() { isDragging = false; lastCell = null; }
+  function endDrag() { if (isDragging) commitStroke(); isDragging = false; lastCell = null; }
   document.addEventListener("pointerup", endDrag);
   document.addEventListener("pointercancel", endDrag);
 
@@ -457,6 +618,27 @@
   }
   modeEl.addEventListener("click", function () { setMode(mode === "fill" ? "mark" : "fill"); });
 
+  /* ---------- theme ---------- */
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    themeEl.textContent = t === "dark" ? "🌙" : "☀️";
+    document.querySelector('meta[name="theme-color"]').setAttribute("content", t === "dark" ? "#1e2230" : "#eef1f8");
+    try { localStorage.setItem("nono-theme", t); } catch (e) {}
+  }
+  themeEl.addEventListener("click", function () {
+    setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+
+  /* ---------- help modal ---------- */
+  var overlay = document.getElementById("overlay");
+  function openHelp() { overlay.classList.add("open"); }
+  function closeHelp() { overlay.classList.remove("open"); }
+  document.getElementById("help").addEventListener("click", openHelp);
+  document.getElementById("closeHelp").addEventListener("click", closeHelp);
+  document.getElementById("startPlaying").addEventListener("click", closeHelp);
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) closeHelp(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeHelp(); });
+
   /* ---------- win / new / clear / check ---------- */
   function onWin() {
     won = true;
@@ -466,38 +648,42 @@
     }
     messageEl.textContent = "🎉 Solved in " + timeEl.textContent + "!";
     messageEl.className = "message win";
+    updateUndoBtn();
   }
 
   function newPuzzle() {
     N = parseInt(sizeEl.value, 10);
-    solution = generateSolution(N);
-    computeClues();
+    var p = makePuzzle(N);
+    solution = p.solution;
+    rowClues = p.rowClues;
+    colClues = p.colClues;
     state = [];
-    for (var r = 0; r < N; r++) {
-      var row = [];
-      for (var c = 0; c < N; c++) row.push(0);
-      state.push(row);
-    }
+    for (var r = 0; r < N; r++) { var row = []; for (var c = 0; c < N; c++) row.push(0); state.push(row); }
     won = false;
-    messageEl.textContent = "";
+    undoStack = [];
+    currentStroke = null;
+    messageEl.textContent = p.logic ? "" : "Heads up: this one may need a guess.";
     messageEl.className = "message";
     setMode("fill");
+    updateUndoBtn();
     buildBoard();
     startTimer();
   }
 
   function clearBoard() {
     if (won) return;
-    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) state[r][c] = 0;
+    currentStroke = [];
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      if (state[r][c] !== 0) { currentStroke.push({ r: r, c: c, prev: state[r][c] }); state[r][c] = 0; }
+    }
+    commitStroke();
     renderState();
   }
 
   function checkMistakes() {
     if (won) return;
     var mistakes = 0;
-    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
-      if (state[r][c] === 1 && solution[r][c] === 0) mistakes++;
-    }
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) if (state[r][c] === 1 && solution[r][c] === 0) mistakes++;
     if (mistakes === 0) {
       messageEl.textContent = "No mistakes so far — keep going!";
       messageEl.className = "message";
@@ -510,17 +696,24 @@
   document.getElementById("new").addEventListener("click", newPuzzle);
   document.getElementById("clear").addEventListener("click", clearBoard);
   document.getElementById("check").addEventListener("click", checkMistakes);
+  undoEl.addEventListener("click", undo);
   sizeEl.addEventListener("change", newPuzzle);
 
-  // re-fit when the screen size / orientation changes
   var resizeTimer = null;
-  window.addEventListener("resize", function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(fitBoard, 120);
-  });
+  window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(fitBoard, 120); });
   window.addEventListener("orientationchange", function () { setTimeout(fitBoard, 250); });
 
+  /* ---------- init ---------- */
+  var savedTheme = "dark";
+  try { savedTheme = localStorage.getItem("nono-theme") || "dark"; } catch (e) {}
+  setTheme(savedTheme);
+
   newPuzzle();
+
+  // show the guide automatically on a first-ever visit
+  try {
+    if (!localStorage.getItem("nono-seen-help")) { openHelp(); localStorage.setItem("nono-seen-help", "1"); }
+  } catch (e) {}
 })();
 </script>
 </body>

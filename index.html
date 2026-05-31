@@ -145,6 +145,17 @@
   .modal .example .lbl { font-size: 12px; color: var(--muted); font-weight: 700; padding-right: 8px; }
   .modal .example .mc { width: 22px; height: 22px; border: 1px solid var(--grid-line); }
   .modal .example .mc.on { background: var(--fill); }
+
+  /* ----- celebration ----- */
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 120; }
+  #balloons { position: fixed; inset: 0; pointer-events: none; z-index: 119; overflow: hidden; }
+  .balloon { position: absolute; bottom: -70px; will-change: transform, opacity; animation: floatUp linear forwards; }
+  @keyframes floatUp {
+    0%   { transform: translateY(0) rotate(0deg);    opacity: 0; }
+    12%  { opacity: 1; }
+    82%  { opacity: 1; }
+    100% { transform: translateY(-112vh) rotate(10deg); opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -172,6 +183,9 @@
     <div>Time: <b id="time">0:00</b></div>
     <div>Filled: <b id="progress">0 / 0</b></div>
   </div>
+
+  <canvas id="confetti"></canvas>
+  <div id="balloons"></div>
 
   <div id="boardWrap"><div id="board" class="board"></div></div>
 
@@ -639,6 +653,88 @@
   overlay.addEventListener("click", function (e) { if (e.target === overlay) closeHelp(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeHelp(); });
 
+  /* ---------- celebration ---------- */
+  var confettiCanvas = document.getElementById("confetti");
+  var confettiCtx = confettiCanvas.getContext("2d");
+  var confettiParticles = [];
+  var confettiRAF = null;
+
+  function sizeConfetti() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+
+  function celebrate() {
+    sizeConfetti();
+    launchConfetti();
+    launchBalloons();
+  }
+
+  function launchConfetti() {
+    var colors = ["#6c8cff", "#ffb86c", "#36c46f", "#ff6b8b", "#ffd34e", "#7ee0ff"];
+    var W = confettiCanvas.width, H = confettiCanvas.height;
+    confettiParticles = [];
+    var count = Math.max(80, Math.min(240, Math.floor(W / 4)));
+    for (var i = 0; i < count; i++) {
+      confettiParticles.push({
+        x: Math.random() * W,
+        y: -20 - Math.random() * H * 0.6,
+        r: 4 + Math.random() * 7,
+        c: colors[Math.floor(Math.random() * colors.length)],
+        vx: -2 + Math.random() * 4,
+        vy: 2 + Math.random() * 4,
+        rot: Math.random() * Math.PI,
+        vr: -0.2 + Math.random() * 0.4,
+        life: 0,
+        maxLife: 200 + Math.random() * 130
+      });
+    }
+    if (!confettiRAF) confettiRAF = requestAnimationFrame(stepConfetti);
+  }
+
+  function stepConfetti() {
+    var ctx = confettiCtx, W = confettiCanvas.width, H = confettiCanvas.height;
+    ctx.clearRect(0, 0, W, H);
+    var alive = 0;
+    for (var i = 0; i < confettiParticles.length; i++) {
+      var p = confettiParticles[i];
+      if (p.life > p.maxLife) continue;
+      p.life++;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05;            // gravity
+      p.vx *= 0.995;
+      p.rot += p.vr;
+      var fade = p.life > p.maxLife - 45 ? (p.maxLife - p.life) / 45 : 1;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, fade);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
+      ctx.restore();
+      if (p.y < H + 40 && p.life <= p.maxLife) alive++;
+    }
+    if (alive > 0) { confettiRAF = requestAnimationFrame(stepConfetti); }
+    else { confettiRAF = null; ctx.clearRect(0, 0, W, H); }
+  }
+
+  function launchBalloons() {
+    var emojis = ["🎈", "🎉", "👏", "🥳", "🎊", "🎈"];
+    var layer = document.getElementById("balloons");
+    for (var i = 0; i < 14; i++) {
+      var b = document.createElement("div");
+      b.className = "balloon";
+      b.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      b.style.left = (4 + Math.random() * 90) + "vw";
+      b.style.fontSize = (28 + Math.random() * 28) + "px";
+      b.style.animationDuration = (3 + Math.random() * 2.5) + "s";
+      b.style.animationDelay = (Math.random() * 0.9) + "s";
+      layer.appendChild(b);
+      (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 7000); })(b);
+    }
+  }
+
   /* ---------- win / new / clear / check ---------- */
   function onWin() {
     won = true;
@@ -649,6 +745,7 @@
     messageEl.textContent = "🎉 Solved in " + timeEl.textContent + "!";
     messageEl.className = "message win";
     updateUndoBtn();
+    celebrate();
   }
 
   function newPuzzle() {

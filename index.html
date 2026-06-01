@@ -102,7 +102,7 @@
   .clue-top span, .clue-left span { display: block; }
   .clue-top.solved, .clue-left.solved { color: #36c46f; }
 
-  .cells { display: grid; gap: 0; border: 2px solid var(--grid-line-major); touch-action: none; }
+  .cells { display: grid; gap: 0; border: 2px solid var(--grid-line-major); touch-action: manipulation; }
   .cell { background: var(--cell-empty); border: 1px solid var(--grid-line); cursor: pointer; position: relative; }
   .cell.filled { background: var(--fill); }
   .cell.marked::after {
@@ -186,7 +186,7 @@
   <div id="boardWrap"><div id="board" class="board"></div></div>
 
   <div id="message" class="message"></div>
-  <p class="hint" id="hint"><b>Phone:</b> tap to cycle fill → X → empty &nbsp;•&nbsp; <b>Mouse:</b> left-click = fill, right-click = X (click again to clear) &nbsp;•&nbsp; Drag to paint</p>
+  <p class="hint" id="hint"><b>Phone:</b> tap a cell to cycle fill → X → empty • drag in any direction to scroll &nbsp;•&nbsp; <b>Mouse:</b> left-click = fill, right-click = X (click again to clear) • drag to paint</p>
 
   <!-- Help modal -->
   <div class="overlay" id="overlay">
@@ -208,7 +208,7 @@
       <ul>
         <li><b>On a phone / tablet:</b> tap a cell to cycle through its states — empty → <b>filled</b> (<span class="swatch" style="background:var(--fill)"></span>) → <b>X</b> (ruled out) → empty again.</li>
         <li><b>With a mouse:</b> <b>left-click</b> fills a cell (click again to clear it); <b>right-click</b> places an <b>X</b> (click again to clear it).</li>
-        <li><b>Drag</b> across cells to paint several at once (they all take the first cell's new state).</li>
+        <li><b>With a mouse, drag</b> across cells to paint several at once (they all take the first cell's new state). On a phone, dragging in any direction scrolls the page — tap each cell individually to change it.</li>
         <li><b>Undo</b> reverses your last action.</li>
       </ul>
 
@@ -259,6 +259,11 @@
   var lastCell = null;
   var currentStroke = null;   // array of {r,c,prev} for the in-progress gesture
   var undoStack = [];
+
+  // touch gesture: tell a tap (paint) apart from a vertical drag (scroll)
+  var touchStart = null;      // { x, y, cell, r, c } of the finger-down cell
+  var touchMode = null;       // null = undecided, "paint", or "scroll"
+  var TAP_THRESHOLD = 8;      // px of movement before a touch counts as a drag
 
   /* ---------- timer ---------- */
   function startTimer() {
@@ -498,17 +503,34 @@
   }
 
   function fitBoard() {
+    // Pull the board out of normal flow BEFORE measuring, so its natural width
+    // can't stretch the wrapper and fool the available-width measurement.
+    boardEl.style.position = "absolute";
+    boardEl.style.left = "0px";
+    boardEl.style.margin = "0";
     boardEl.style.transform = "none";
-    boardEl.style.position = "static";
+
     var natural = boardEl.offsetWidth;
-    var avail = boardWrap.clientWidth;
-    var scale = Math.min(1, avail / natural);
+    var naturalH = boardEl.offsetHeight;
+
+    // Never claim more width than the viewport actually has (minus body padding).
+    var viewportW = document.documentElement.clientWidth || window.innerWidth;
+    var availW = Math.min(boardWrap.clientWidth, viewportW - 16);
+
+    // Also keep the grid within the screen height where possible, leaving a
+    // little room below for the status message.
+    var topY = boardWrap.getBoundingClientRect().top;
+    var availH = window.innerHeight - topY - 70;
+    if (availH < 240) availH = window.innerHeight - topY - 12;
+
+    var scale = Math.min(1, availW / natural, availH / naturalH);
+
     if (scale < 1) {
-      boardEl.style.position = "absolute";
-      boardEl.style.left = Math.max(0, (avail - natural * scale) / 2) + "px";
+      boardEl.style.left = Math.max(0, (availW - natural * scale) / 2) + "px";
       boardEl.style.transform = "scale(" + scale + ")";
-      boardWrap.style.height = (boardEl.offsetHeight * scale) + "px";
+      boardWrap.style.height = (naturalH * scale) + "px";
     } else {
+      boardEl.style.position = "static";
       boardEl.style.margin = "0 auto";
       boardWrap.style.height = "auto";
     }
@@ -581,38 +603,77 @@
     return (el && el.closest) ? el.closest(".cell") : null;
   }
   function nextValue(v) { return (v + 1) % 3; }   // empty(0) -> filled(1) -> X(2) -> empty(0)
+
+  function paintCellAt(x, y) {
+    var cell = cellFromPoint(x, y);
+    if (!cell || cell === lastCell) return;
+    lastCell = cell;
+    applyToCell(+cell.dataset.r, +cell.dataset.c, dragValue);
+  }
+
   function attachPointerEvents(wrap) {
     wrap.addEventListener("pointerdown", function (e) {
       var cell = e.target.closest && e.target.closest(".cell");
       if (!cell) return;
-      e.preventDefault();
       var r = +cell.dataset.r, c = +cell.dataset.c;
-      isDragging = true;
-      currentStroke = [];
+
       if (e.pointerType === "mouse") {
-        // mouse: left-click toggles fill, right-click toggles X
+        // mouse: paint immediately; left-click toggles fill, right-click toggles X.
+        e.preventDefault();
+        isDragging = true;
+        currentStroke = [];
         if (e.button === 2) dragValue = state[r][c] === 2 ? 0 : 2;
         else dragValue = state[r][c] === 1 ? 0 : 1;
-      } else {
-        // touch / pen: a tap cycles empty -> fill -> X -> empty
-        dragValue = nextValue(state[r][c]);
+        lastCell = cell;
+        applyToCell(r, c, dragValue);
+        return;
       }
-      lastCell = cell;
-      applyToCell(r, c, dragValue);
+
+      // touch / pen: don't paint yet. Wait to see if this is a tap (paint) or a
+      // drag. Not calling preventDefault here lets the browser scroll vertically.
+      touchStart = { x: e.clientX, y: e.clientY, cell: cell, r: r, c: c };
+      touchMode = null;
+      isDragging = false;
+      currentStroke = null;
+      lastCell = null;
     });
+
     wrap.addEventListener("pointermove", function (e) {
-      if (!isDragging) return;
-      e.preventDefault();
-      var cell = cellFromPoint(e.clientX, e.clientY);
-      if (!cell || cell === lastCell) return;
-      lastCell = cell;
-      applyToCell(+cell.dataset.r, +cell.dataset.c, dragValue);
+      if (e.pointerType === "mouse") {
+        if (!isDragging) return;
+        e.preventDefault();
+        paintCellAt(e.clientX, e.clientY);
+        return;
+      }
+
+      // touch / pen: any drag in any direction scrolls the page. Only a tap
+      // (finger up with no real movement) changes a cell.
+      if (!touchStart || touchMode !== null) return;
+      var dx = e.clientX - touchStart.x, dy = e.clientY - touchStart.y;
+      if (Math.abs(dx) >= TAP_THRESHOLD || Math.abs(dy) >= TAP_THRESHOLD) touchMode = "scroll";
     });
+
     wrap.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   }
-  function endDrag() { if (isDragging) commitStroke(); isDragging = false; lastCell = null; }
-  document.addEventListener("pointerup", endDrag);
-  document.addEventListener("pointercancel", endDrag);
+
+  function finishTouch(canceled) {
+    // A finger-up with no real movement is a tap -> cycle the cell.
+    // A cancel (browser took over to scroll) must NOT paint.
+    if (touchStart && touchMode === null && !canceled) {
+      currentStroke = [];
+      applyToCell(touchStart.r, touchStart.c, nextValue(state[touchStart.r][touchStart.c]));
+    }
+    if (currentStroke) commitStroke();
+    touchStart = null; touchMode = null; isDragging = false; lastCell = null;
+  }
+  function finishMouse() { if (isDragging) commitStroke(); isDragging = false; lastCell = null; }
+
+  document.addEventListener("pointerup", function (e) {
+    if (e.pointerType === "mouse") finishMouse(); else finishTouch(false);
+  });
+  document.addEventListener("pointercancel", function (e) {
+    if (e.pointerType === "mouse") finishMouse(); else finishTouch(true);
+  });
 
   /* ---------- theme ---------- */
   function setTheme(t) {
